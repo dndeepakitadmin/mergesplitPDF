@@ -1,46 +1,61 @@
 import gradio as gr
 from PyPDF2 import PdfMerger, PdfReader
+import tempfile
 import os
 
 # --- PDF Merge Function ---
 def merge_pdfs(files):
+    if not files:
+        return "No files uploaded."
+    
     merger = PdfMerger()
-    for f in files:
-        merger.append(f.name)
-    output_path = "merged.pdf"
+    for file in files:
+        merger.append(file.name)
+    
+    output_path = os.path.join(tempfile.gettempdir(), "merged.pdf")
     merger.write(output_path)
     merger.close()
     return output_path
 
 # --- PDF Split Function ---
-def split_pdf(file, start_page, end_page):
+def split_pdf(file):
+    if not file:
+        return "No file uploaded."
+    
     reader = PdfReader(file.name)
-    writer_output = "split.pdf"
+    output_files = []
+    for i, page in enumerate(reader.pages):
+        writer = PdfMerger()
+        writer.append(file.name, pages=(i, i+1))
+        out_path = os.path.join(tempfile.gettempdir(), f"page_{i+1}.pdf")
+        writer.write(out_path)
+        writer.close()
+        output_files.append(out_path)
+    return output_files
 
-    from PyPDF2 import PdfWriter
-    writer = PdfWriter()
-    for page in range(start_page-1, end_page):  # 0-index
-        writer.add_page(reader.pages[page])
-    with open(writer_output, "wb") as f_out:
-        writer.write(f_out)
-    return writer_output
-
-# --- Gradio Interface ---
+# --- Gradio UI ---
 with gr.Blocks() as demo:
     gr.Markdown("## 📄 PDF Tools - Merge & Split (Lightweight Version)")
+    gr.Markdown("⚠️ Maximum file size per PDF: ~50 MB")
     
     with gr.Tab("Merge PDFs"):
-        merge_input = gr.File(file_types=[".pdf"], label="Upload PDFs", file_types_multiple=True)
+        merge_input = gr.File(
+            label="Upload PDFs",
+            file_types=[".pdf"],
+            file_types_allow_multiple=True
+        )
         merge_output = gr.File(label="Download Merged PDF")
-        merge_btn = gr.Button("Merge")
-        merge_btn.click(fn=merge_pdfs, inputs=merge_input, outputs=merge_output)
-
+        merge_button = gr.Button("Merge")
+        merge_button.click(merge_pdfs, inputs=merge_input, outputs=merge_output)
+    
     with gr.Tab("Split PDF"):
-        split_input = gr.File(file_types=[".pdf"], label="Upload PDF")
-        start_page = gr.Number(label="Start Page", value=1)
-        end_page = gr.Number(label="End Page", value=1)
-        split_output = gr.File(label="Download Split PDF")
-        split_btn = gr.Button("Split")
-        split_btn.click(fn=split_pdf, inputs=[split_input, start_page, end_page], outputs=split_output)
+        split_input = gr.File(
+            label="Upload a PDF to split",
+            file_types=[".pdf"]
+        )
+        split_output = gr.File(label="Download Split PDFs")
+        split_button = gr.Button("Split")
+        split_button.click(split_pdf, inputs=split_input, outputs=split_output)
 
+# --- Launch the app ---
 demo.launch()
