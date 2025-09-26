@@ -1,2 +1,2 @@
-gradio==3.53.2
+gradio
 PyPDF2
