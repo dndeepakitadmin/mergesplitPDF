@@ -6,7 +6,7 @@ import os
 # --- PDF Merge Function ---
 def merge_pdfs(files):
     if not files:
-        return "No files uploaded."
+        return None
     
     merger = PdfMerger()
     for file in files:
@@ -20,7 +20,7 @@ def merge_pdfs(files):
 # --- PDF Split Function ---
 def split_pdf(file):
     if not file:
-        return "No file uploaded."
+        return None
     
     reader = PdfReader(file.name)
     output_files = []
