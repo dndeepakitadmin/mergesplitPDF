@@ -7,11 +7,11 @@ import os
 def merge_pdfs(files):
     if not files:
         return None
-    
+
     merger = PdfMerger()
     for file in files:
         merger.append(file.name)
-    
+
     output_path = os.path.join(tempfile.gettempdir(), "merged.pdf")
     merger.write(output_path)
     merger.close()
@@ -21,7 +21,7 @@ def merge_pdfs(files):
 def split_pdf(file):
     if not file:
         return None
-    
+
     reader = PdfReader(file.name)
     output_files = []
     for i, page in enumerate(reader.pages):
@@ -37,18 +37,20 @@ def split_pdf(file):
 with gr.Blocks() as demo:
     gr.Markdown("## 📄 PDF Tools - Merge & Split (Lightweight Version)")
     gr.Markdown("⚠️ Maximum file size per PDF: ~50 MB")
-    
+
+    # Merge PDFs Tab
     with gr.Tab("Merge PDFs"):
         merge_input = gr.File(
             label="Upload PDFs",
             file_types=[".pdf"],
             type="file",
-            file_types_multiple=True
+            file_types_allow_multiple=True  # ✅ Works with Gradio 3.42.0
         )
         merge_output = gr.File(label="Download Merged PDF")
         merge_button = gr.Button("Merge")
         merge_button.click(merge_pdfs, inputs=merge_input, outputs=merge_output)
-    
+
+    # Split PDFs Tab
     with gr.Tab("Split PDF"):
         split_input = gr.File(
             label="Upload a PDF to split",
