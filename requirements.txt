@@ -1,2 +1,2 @@
-gradio
-pypdf2
+gradio>=3.48.0
+PyPDF2
