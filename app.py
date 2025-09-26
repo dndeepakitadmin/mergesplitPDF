@@ -30,7 +30,7 @@ with gr.Blocks() as demo:
     gr.Markdown("## 📄 PDF Tools - Merge & Split (Lightweight Version)")
     
     with gr.Tab("Merge PDFs"):
-        merge_input = gr.File(file_types=[".pdf"], file_types_allow_multiple=True, label="Upload PDFs")
+        merge_input = gr.File(file_types=[".pdf"], label="Upload PDFs", file_types_multiple=True)
         merge_output = gr.File(label="Download Merged PDF")
         merge_btn = gr.Button("Merge")
         merge_btn.click(fn=merge_pdfs, inputs=merge_input, outputs=merge_output)
