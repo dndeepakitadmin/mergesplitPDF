@@ -35,7 +35,7 @@ def split_pdf(file):
 
 # --- Gradio UI ---
 with gr.Blocks() as demo:
-    gr.Markdown("## 📄 PDF Tools - Merge & Split (Lightweight Version)")
+    gr.Markdown("## 📄 PDF Tools - Merge & Split (Stable Version)")
     gr.Markdown("⚠️ Maximum file size per PDF: ~50 MB")
 
     # Merge PDFs Tab
@@ -44,7 +44,7 @@ with gr.Blocks() as demo:
             label="Upload PDFs",
             file_types=[".pdf"],
             type="file",
-            file_types_allow_multiple=True  # ✅ Works with Gradio 3.42.0
+            file_types_allow_multiple=True  # ✅ stable in Gradio 3.53.2
         )
         merge_output = gr.File(label="Download Merged PDF")
         merge_button = gr.Button("Merge")
