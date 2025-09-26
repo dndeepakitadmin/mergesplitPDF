@@ -43,7 +43,7 @@ with gr.Blocks() as demo:
         merge_input = gr.File(
             label="Upload PDFs",
             file_types=[".pdf"],
-            file_types_allow_multiple=True  # ✅ works with Gradio 3.53.2
+            file_types_multiple=True  # ✅ compatible with latest Gradio
         )
         merge_output = gr.File(label="Download Merged PDF")
         merge_button = gr.Button("Merge")
