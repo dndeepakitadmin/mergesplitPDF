@@ -35,8 +35,8 @@ with gr.Blocks() as demo:
         merge_input = gr.File(
             label="Upload PDFs",
             file_types=[".pdf"],
-            type="file",
-            file_count="multiple"  # ✅ safe for multiple files
+            file_count="multiple",      # ✅ multiple files
+            type="filepath"             # ✅ must be 'filepath' or 'binary'
         )
         merge_output = gr.File(label="Download Merged PDF")
         merge_button = gr.Button("Merge")
@@ -45,7 +45,8 @@ with gr.Blocks() as demo:
     with gr.Tab("Split PDF"):
         split_input = gr.File(
             label="Upload PDF to split",
-            file_types=[".pdf"]
+            file_types=[".pdf"],
+            type="filepath"             # ✅ 'filepath'
         )
         split_output = gr.File(label="Download Split PDFs")
         split_button = gr.Button("Split")
