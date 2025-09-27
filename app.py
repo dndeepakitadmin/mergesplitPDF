@@ -1,55 +1,66 @@
-import gradio as gr
-from PyPDF2 import PdfMerger, PdfReader
-import tempfile, os
+import streamlit as st
+from PyPDF2 import PdfMerger, PdfReader, PdfWriter
+import tempfile
+import os
 
+st.set_page_config(page_title="PDF Tool", page_icon="📄", layout="centered")
+st.title("📄 PDF Tools - Merge & Split")
+
+# --- PDF Merge ---
 def merge_pdfs(files):
     if not files:
         return None
     merger = PdfMerger()
-    for f in files:
-        merger.append(f.name)
-    out_path = os.path.join(tempfile.gettempdir(), "merged.pdf")
-    merger.write(out_path)
+    for file in files:
+        merger.append(file)
+    output_path = os.path.join(tempfile.gettempdir(), "merged.pdf")
+    with open(output_path, "wb") as f:
+        merger.write(f)
     merger.close()
-    return out_path
+    return output_path
 
+# --- PDF Split ---
 def split_pdf(file):
     if not file:
         return None
-    reader = PdfReader(file.name)
-    out_files = []
+    reader = PdfReader(file)
+    output_files = []
     for i, page in enumerate(reader.pages):
-        writer = PdfMerger()
-        writer.append(file.name, pages=(i, i+1))
-        path = os.path.join(tempfile.gettempdir(), f"page_{i+1}.pdf")
-        writer.write(path)
-        writer.close()
-        out_files.append(path)
-    return out_files
+        writer = PdfWriter()
+        writer.add_page(page)
+        out_path = os.path.join(tempfile.gettempdir(), f"page_{i+1}.pdf")
+        with open(out_path, "wb") as f:
+            writer.write(f)
+        output_files.append(out_path)
+    return output_files
 
-with gr.Blocks() as demo:
-    gr.Markdown("## 📄 PDF Tools - Merge & Split")
-    gr.Markdown("⚠️ Max file size per PDF ~50MB")
+# --- UI Tabs ---
+tab1, tab2 = st.tabs(["🔗 Merge PDFs", "✂️ Split PDF"])
 
-    with gr.Tab("Merge PDFs"):
-        merge_input = gr.File(
-            label="Upload PDFs",
-            file_types=[".pdf"],
-            file_count="multiple",      # ✅ multiple files
-            type="filepath"             # ✅ must be 'filepath' or 'binary'
-        )
-        merge_output = gr.File(label="Download Merged PDF")
-        merge_button = gr.Button("Merge")
-        merge_button.click(merge_pdfs, inputs=merge_input, outputs=merge_output)
+with tab1:
+    st.header("Merge PDFs")
+    uploaded_files = st.file_uploader("Upload PDF files", type="pdf", accept_multiple_files=True)
+    if st.button("Merge") and uploaded_files:
+        temp_files = []
+        for file in uploaded_files:
+            temp_path = os.path.join(tempfile.gettempdir(), file.name)
+            with open(temp_path, "wb") as f:
+                f.write(file.getbuffer())
+            temp_files.append(temp_path)
+        merged_file = merge_pdfs(temp_files)
+        if merged_file:
+            with open(merged_file, "rb") as f:
+                st.download_button("⬇️ Download Merged PDF", f, file_name="merged.pdf")
 
-    with gr.Tab("Split PDF"):
-        split_input = gr.File(
-            label="Upload PDF to split",
-            file_types=[".pdf"],
-            type="filepath"             # ✅ 'filepath'
-        )
-        split_output = gr.File(label="Download Split PDFs")
-        split_button = gr.Button("Split")
-        split_button.click(split_pdf, inputs=split_input, outputs=split_output)
-
-demo.launch()
+with tab2:
+    st.header("Split PDF")
+    uploaded_file = st.file_uploader("Upload a PDF file", type="pdf")
+    if st.button("Split") and uploaded_file:
+        temp_path = os.path.join(tempfile.gettempdir(), uploaded_file.name)
+        with open(temp_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+        split_files = split_pdf(temp_path)
+        if split_files:
+            for i, path in enumerate(split_files, start=1):
+                with open(path, "rb") as f:
+                    st.download_button(f"⬇️ Download Page {i}", f, file_name=f"page_{i}.pdf")
