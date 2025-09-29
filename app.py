@@ -43,6 +43,7 @@ with tab1:
     st.header("Merge PDFs")
     uploaded_files = st.file_uploader("Upload PDF files", type="pdf", accept_multiple_files=True)
     custom_name = st.text_input("Enter file name for merged PDF (without extension)", value="merged")
+    
     if st.button("Merge") and uploaded_files:
         temp_files = []
         for file in uploaded_files:
@@ -59,28 +60,42 @@ with tab1:
 with tab2:
     st.header("Split PDF")
     uploaded_file = st.file_uploader("Upload a PDF file", type="pdf")
-    page_ranges_text = st.text_area(
-        "Enter page ranges separated by commas (e.g., 1-30,50-75,96-113,125-148)",
-        value=""
-    )
-    if st.button("Split") and uploaded_file:
+    
+    if uploaded_file:
+        # Save temporary file
         temp_path = os.path.join(tempfile.gettempdir(), uploaded_file.name)
         with open(temp_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
         
-        # Parse user ranges
-        try:
-            ranges = []
-            for part in page_ranges_text.split(","):
-                start, end = map(int, part.strip().split("-"))
-                ranges.append((start, end))
-        except Exception as e:
-            st.error("Invalid page range format. Use like 1-30,50-75,...")
-            ranges = []
+        # Get number of pages
+        reader = PdfReader(temp_path)
+        total_pages = len(reader.pages)
+        st.info(f"📄 The uploaded file has **{total_pages} pages**.")
+        
+        # Page ranges input
+        page_ranges_text = st.text_area(
+            "Enter page ranges separated by commas (e.g., 1-30,50-75,96-113,125-148)",
+            value=""
+        )
 
-        if ranges:
-            split_files = split_pdf_by_ranges(temp_path, ranges)
-            if split_files:
-                for label, path in split_files:
-                    with open(path, "rb") as f:
-                        st.download_button(f"⬇️ Download Pages {label}", f, file_name=f"pages_{label}.pdf")
+        if st.button("Split"):
+            # Parse user ranges
+            try:
+                ranges = []
+                for part in page_ranges_text.split(","):
+                    start, end = map(int, part.strip().split("-"))
+                    if start < 1 or end > total_pages or start > end:
+                        st.error(f"Invalid range {start}-{end}. File has only {total_pages} pages.")
+                        ranges = []
+                        break
+                    ranges.append((start, end))
+            except Exception as e:
+                st.error("Invalid page range format. Use like 1-30,50-75,...")
+                ranges = []
+
+            if ranges:
+                split_files = split_pdf_by_ranges(temp_path, ranges)
+                if split_files:
+                    for label, path in split_files:
+                        with open(path, "rb") as f:
+                            st.download_button(f"⬇️ Download Pages {label}", f, file_name=f"pages_{label}.pdf")
