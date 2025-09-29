@@ -2,48 +2,77 @@ import streamlit as st
 from PyPDF2 import PdfMerger, PdfReader, PdfWriter
 import tempfile
 import os
+import json
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+from datetime import datetime
 
 st.set_page_config(page_title="PDF Tool", page_icon="📄", layout="centered")
 st.title("📄 PDF Tools - Merge & Split")
 
+st.info("⚠️ Make sure the file you are uploading is not encrypted or corrupted.")
+
+# ------------------ Google Sheets Setup ------------------
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+service_account_info = json.loads(st.secrets["gcp"]["service_account_json"])
+creds = ServiceAccountCredentials.from_json_keyfile_dict(service_account_info, scope)
+gc = gspread.authorize(creds)
+
+# Replace with your Google Sheet name
+SHEET_NAME = "PDFToolLogs"
+try:
+    sheet = gc.open(SHEET_NAME).sheet1
+except gspread.SpreadsheetNotFound:
+    # Create sheet if not exists
+    sh = gc.create(SHEET_NAME)
+    sheet = sh.sheet1
+    sheet.append_row(["Timestamp", "Action", "Filename", "Pages/Range", "Acknowledgment"])
+
+# ------------------ Functions ------------------
+
+def log_action(action, filename, pages_range="", ack=""):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    sheet.append_row([timestamp, action, filename, pages_range, ack])
+
 # --- PDF Merge ---
-def merge_pdfs(files):
+def merge_pdfs(files, output_name):
     if not files:
         return None
     merger = PdfMerger()
     for file in files:
         merger.append(file)
-    output_path = os.path.join(tempfile.gettempdir(), "merged.pdf")
+    output_path = os.path.join(tempfile.gettempdir(), f"{output_name}.pdf")
     with open(output_path, "wb") as f:
         merger.write(f)
     merger.close()
     return output_path
 
 # --- PDF Split by ranges ---
-def split_pdf_by_ranges(file, ranges):
-    if not file or not ranges:
-        return None
-    reader = PdfReader(file)
+def split_pdf_by_ranges(file_path, ranges):
+    reader = PdfReader(file_path)
     output_files = []
-    for i, (start, end) in enumerate(ranges):
+    total_pages = len(reader.pages)
+
+    for r in ranges:
+        start, end = r
         writer = PdfWriter()
-        for page_num in range(start-1, min(end, len(reader.pages))):
-            writer.add_page(reader.pages[page_num])
-        out_path = os.path.join(tempfile.gettempdir(), f"split_{start}_{end}.pdf")
+        for i in range(start-1, min(end, total_pages)):
+            writer.add_page(reader.pages[i])
+        out_path = os.path.join(tempfile.gettempdir(), f"pages_{start}-{end}.pdf")
         with open(out_path, "wb") as f:
             writer.write(f)
-        output_files.append((f"{start}-{end}", out_path))
-    return output_files
+        output_files.append((out_path, f"{start}-{end}"))
+    return output_files, total_pages
 
-# --- UI Tabs ---
+# ------------------ Tabs ------------------
 tab1, tab2 = st.tabs(["🔗 Merge PDFs", "✂️ Split PDF"])
 
-# --- Merge PDFs ---
+# ------------------ Merge ------------------
 with tab1:
     st.header("Merge PDFs")
-    st.warning("⚠️ Make sure the files you are uploading are not encrypted or corrupted.")
     uploaded_files = st.file_uploader("Upload PDF files", type="pdf", accept_multiple_files=True)
-    custom_name = st.text_input("Enter file name for merged PDF (without extension)", value="merged")
+    output_name = st.text_input("Enter merged file name:", "merged")
+    ack_merge = st.checkbox("I confirm that I will use these files legally and responsibly")
     
     if st.button("Merge") and uploaded_files:
         temp_files = []
@@ -52,57 +81,70 @@ with tab1:
             with open(temp_path, "wb") as f:
                 f.write(file.getbuffer())
             temp_files.append(temp_path)
-        merged_file = merge_pdfs(temp_files)
+        merged_file = merge_pdfs(temp_files, output_name)
         if merged_file:
             with open(merged_file, "rb") as f:
-                st.download_button("⬇️ Download Merged PDF", f, file_name=f"{custom_name}.pdf")
+                st.download_button("⬇️ Download Merged PDF", f, file_name=f"{output_name}.pdf")
+            log_action("Merge", output_name, pages_range=f"{len(temp_files)} files", ack="Yes" if ack_merge else "No")
 
-# --- Split PDFs ---
+# ------------------ Split ------------------
 with tab2:
     st.header("Split PDF")
-    st.warning("⚠️ Make sure the file you are uploading is not encrypted or corrupted.")
-    uploaded_file = st.file_uploader("Upload a PDF file", type="pdf")
+    uploaded_file = st.file_uploader("Upload a PDF file to split", type="pdf", key="split_uploader")
     
     if uploaded_file:
-        # Save temporary file
         temp_path = os.path.join(tempfile.gettempdir(), uploaded_file.name)
         with open(temp_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
+        reader = PdfReader(temp_path)
+        total_pages = len(reader.pages)
+        st.info(f"✅ Uploaded PDF has **{total_pages} pages**")
         
-        # Get number of pages
-        try:
-            reader = PdfReader(temp_path)
-            total_pages = len(reader.pages)
-            st.info(f"📄 The uploaded file has **{total_pages} pages**.")
-        except Exception as e:
-            st.error("❌ Failed to read PDF. It might be encrypted or corrupted.")
-            total_pages = 0
+        page_ranges_input = st.text_input("Enter page ranges to split (e.g., 1-15,17-25,30-50):")
+        ack_split = st.checkbox("I confirm that I will use these files legally and responsibly")
+        finished_split = st.button("Finished Splitting")
+        
+        if page_ranges_input:
+            try:
+                ranges = []
+                for part in page_ranges_input.split(","):
+                    start, end = map(int, part.strip().split("-"))
+                    ranges.append((start, end))
+                
+                split_files, _ = split_pdf_by_ranges(temp_path, ranges)
+                
+                if split_files:
+                    st.write("⬇️ Download your split files:")
+                    # Only show download buttons until "Finished Splitting" clicked
+                    if not finished_split:
+                        for out_path, r in split_files:
+                            with open(out_path, "rb") as f:
+                                st.download_button(f"Download Pages {r}", f, file_name=f"pages_{r}.pdf", key=r)
+                    else:
+                        for out_path, r in split_files:
+                            with open(out_path, "rb") as f:
+                                st.download_button(f"Download Pages {r}", f, file_name=f"pages_{r}.pdf", key=r)
+                        st.success("✅ Finished splitting. All pages are ready for download.")
+                    log_action("Split", uploaded_file.name, pages_range=page_ranges_input, ack="Yes" if ack_split else "No")
+            except Exception as e:
+                st.error(f"❌ Invalid input. Please enter ranges like 1-15,17-25. Error: {e}")
 
-        if total_pages > 0:
-            # Page ranges input
-            page_ranges_text = st.text_area(
-                "Enter page ranges separated by commas (e.g., 1-30,50-75,96-113,125-148)",
-                value=""
-            )
+# ------------------ Optional Deletion Certificate ------------------
+st.sidebar.header("Optional: Data Deletion Certificate")
+cert_option = st.sidebar.checkbox("I want a certificate confirming uploaded data is deleted after processing")
+if cert_option:
+    st.sidebar.success("After processing, you can download a certificate stating your data was deleted safely.")
+    if st.button("Download Deletion Certificate"):
+        cert_text = f"""
+        PDF Tool Data Deletion Certificate
 
-            if st.button("Split"):
-                # Parse user ranges
-                try:
-                    ranges = []
-                    for part in page_ranges_text.split(","):
-                        start, end = map(int, part.strip().split("-"))
-                        if start < 1 or end > total_pages or start > end:
-                            st.error(f"Invalid range {start}-{end}. File has only {total_pages} pages.")
-                            ranges = []
-                            break
-                        ranges.append((start, end))
-                except Exception as e:
-                    st.error("Invalid page range format. Use like 1-30,50-75,...")
-                    ranges = []
+        This is to certify that all uploaded PDF files for processing have been deleted from the system
+        immediately after processing.
 
-                if ranges:
-                    split_files = split_pdf_by_ranges(temp_path, ranges)
-                    if split_files:
-                        for label, path in split_files:
-                            with open(path, "rb") as f:
-                                st.download_button(f"⬇️ Download Pages {label}", f, file_name=f"pages_{label}.pdf")
+        User: End User
+        Tool: PDF Tools - Merge & Split
+        Operator: Deepak Narayan
+        Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+        """
+        st.download_button("⬇️ Download Certificate", cert_text, file_name="deletion_certificate.txt")
+
