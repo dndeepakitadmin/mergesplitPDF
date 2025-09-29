@@ -5,7 +5,7 @@ from reportlab.pdfgen import canvas
 from datetime import datetime
 
 st.set_page_config(layout="wide")
-st.title("Merge and Split PDF Tool")
+st.title("AI PDF Tool")
 
 # --- User acknowledgment ---
 ack = st.checkbox(
@@ -18,8 +18,8 @@ if not ack:
 
 st.info("⚠️ Make sure the file you are uploading is not encrypted or corrupted.")
 
-# --- Layout: Merge & Split side by side ---
-merge_col, split_col = st.columns(2)
+# --- Layout: Merge & Split with slight separation ---
+merge_col, spacer, split_col = st.columns([1, 0.1, 1])
 
 # ---------------- MERGE PDFs ----------------
 with merge_col:
@@ -46,6 +46,25 @@ with merge_col:
                 mime="application/pdf"
             )
 
+            # Optional Data Deletion Certificate for Merge
+            if st.checkbox("Generate Data Deletion Certificate for Merge"):
+                buffer = BytesIO()
+                c = canvas.Canvas(buffer)
+                c.setFont("Helvetica", 12)
+                c.drawString(50, 750, "Data Deletion Certificate (Merge)")
+                c.setFont("Helvetica", 10)
+                c.drawString(50, 720, f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                c.drawString(50, 700, "This certifies that all uploaded files for merging have been removed from memory.")
+                c.save()
+                buffer.seek(0)
+
+                st.download_button(
+                    "Download Merge Data Deletion Certificate",
+                    data=buffer,
+                    file_name="merge_data_deletion_certificate.pdf",
+                    mime="application/pdf"
+                )
+
 # ---------------- SPLIT PDFs ----------------
 with split_col:
     st.header("Split PDF by Ranges")
@@ -59,14 +78,16 @@ with split_col:
         # Initialize session state for tracking downloads
         if "split_downloaded" not in st.session_state:
             st.session_state.split_downloaded = []
-        
+
         # User inputs ranges
-        st.markdown("**Enter page ranges separated by commas, e.g., 1-15,20-25,30-45**")
-        user_ranges = st.text_input("Page ranges", value="1-15,20-25,30-45")
+        st.markdown("**Enter page ranges separated by commas, e.g., 1-5,6-10**")
+        user_ranges = st.text_input("Page ranges", value="")
 
         ranges = []
         try:
             for r in user_ranges.split(","):
+                if r.strip() == "":
+                    continue
                 start, end = map(int, r.split("-"))
                 if start < 1 or end > total_pages or start > end:
                     st.error(f"Invalid range: {start}-{end}. Must be within 1-{total_pages}.")
@@ -74,7 +95,7 @@ with split_col:
                     ranges.append((start, end))
         except:
             st.warning("Enter ranges in proper format: start-end, separated by commas.")
-        
+
         if ranges:
             # Initialize split_downloaded if not set or changed
             if len(st.session_state.split_downloaded) != len(ranges):
@@ -105,23 +126,22 @@ with split_col:
             if all(st.session_state.split_downloaded):
                 st.success("All selected ranges downloaded!")
 
-                # Optional Data Deletion Certificate
-                if st.checkbox("Generate Data Deletion Certificate"):
+                # Optional Data Deletion Certificate for Split
+                if st.checkbox("Generate Data Deletion Certificate for Split"):
                     buffer = BytesIO()
                     c = canvas.Canvas(buffer)
                     c.setFont("Helvetica", 12)
-                    c.drawString(50, 750, "Data Deletion Certificate")
+                    c.drawString(50, 750, "Data Deletion Certificate (Split)")
                     c.setFont("Helvetica", 10)
                     c.drawString(50, 720, f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-                    c.drawString(50, 700, "This certifies that all uploaded files have been removed from memory")
-                    c.drawString(50, 685, "and no data is stored by the AI PDF Tool.")
+                    c.drawString(50, 700, "This certifies that all uploaded files for splitting have been removed from memory.")
                     c.save()
                     buffer.seek(0)
 
                     st.download_button(
-                        "Download Data Deletion Certificate",
+                        "Download Split Data Deletion Certificate",
                         data=buffer,
-                        file_name="data_deletion_certificate.pdf",
+                        file_name="split_data_deletion_certificate.pdf",
                         mime="application/pdf"
                     )
 
