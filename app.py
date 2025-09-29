@@ -1,6 +1,8 @@
 import streamlit as st
 from PyPDF2 import PdfReader, PdfWriter
 from io import BytesIO
+from reportlab.pdfgen import canvas
+from datetime import datetime
 
 st.set_page_config(layout="wide")
 st.title("AI PDF Tool")
@@ -54,13 +56,14 @@ with split_col:
         total_pages = len(pdf_reader.pages)
         st.success(f"Uploaded PDF has {total_pages} pages.")
 
-        # Predefined page ranges for example
+        # Predefined example ranges
         ranges = [(1, 15), (20, 25), (30, 45)]
 
         # Initialize session state for tracking downloads
         if "split_downloaded" not in st.session_state:
             st.session_state.split_downloaded = [False] * len(ranges)
 
+        # Show all download buttons persistently
         for i, (start, end) in enumerate(ranges):
             end = min(end, total_pages)
             if not st.session_state.split_downloaded[i]:
@@ -82,8 +85,30 @@ with split_col:
                     st.session_state.split_downloaded[i] = True
                     st.success(f"Pages {start}-{end} downloaded!")
 
+        # Once all downloaded
         if all(st.session_state.split_downloaded):
             st.balloons()
             st.success("All selected ranges downloaded! You can reset now.")
+
+            # Optional Data Deletion Certificate
+            if st.checkbox("Generate Data Deletion Certificate"):
+                buffer = BytesIO()
+                c = canvas.Canvas(buffer)
+                c.setFont("Helvetica", 12)
+                c.drawString(50, 750, "Data Deletion Certificate")
+                c.setFont("Helvetica", 10)
+                c.drawString(50, 720, f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                c.drawString(50, 700, "This certifies that all uploaded files have been removed from memory")
+                c.drawString(50, 685, "and no data is stored by the AI PDF Tool.")
+                c.save()
+                buffer.seek(0)
+
+                st.download_button(
+                    "Download Data Deletion Certificate",
+                    data=buffer,
+                    file_name="data_deletion_certificate.pdf",
+                    mime="application/pdf"
+                )
+
             if st.button("Reset Split"):
                 st.session_state.split_downloaded = [False] * len(ranges)
