@@ -5,7 +5,7 @@ from reportlab.pdfgen import canvas
 from datetime import datetime
 
 st.set_page_config(layout="wide")
-st.title("AI PDF Tool")
+st.title("Merge and Split PDF Tool")
 
 # --- User acknowledgment ---
 ack = st.checkbox(
