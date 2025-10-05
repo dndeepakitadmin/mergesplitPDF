@@ -4,146 +4,175 @@ from io import BytesIO
 from reportlab.pdfgen import canvas
 from datetime import datetime
 
-st.set_page_config(layout="wide")
-st.title("Merge and Split PDF Tool")
+# --- Page setup ---
+st.set_page_config(layout="wide", page_title="PDF Merge & Split Tool")
+st.title("📄 Merge and Split PDF Tool")
 
-# --- User acknowledgment ---
+# --- Acknowledgment ---
 ack = st.checkbox(
-    "I acknowledge that this tool will NOT be used for unethical or illegal purposes. "
+    "✅ I acknowledge that this tool will NOT be used for unethical or illegal purposes. "
     "It is intended only for personal and professional use."
 )
 if not ack:
-    st.warning("You must acknowledge the terms to use this tool.")
+    st.warning("⚠️ You must acknowledge the terms to use this tool.")
     st.stop()
 
-st.info("⚠️ Make sure the file you are uploading is not encrypted or corrupted.")
+st.info("⚠️ Please ensure the PDF you upload is not encrypted or corrupted.")
 
-# --- Layout: Merge & Split with slight separation ---
+# --- Layout: two sections side by side ---
 merge_col, spacer, split_col = st.columns([1, 0.1, 1])
 
-# ---------------- MERGE PDFs ----------------
+# -------------------------------------------------------------------
+# 🧩 MERGE PDFs
+# -------------------------------------------------------------------
 with merge_col:
-    st.header("Merge PDFs")
-    merge_files = st.file_uploader("Upload PDFs to merge", type=["pdf"], accept_multiple_files=True, key="merge")
-    custom_name = st.text_input("Custom output file name", value="merged.pdf", key="merge_name")
+    st.header("🔗 Merge PDFs")
 
-    if merge_files:
-        if st.button("Merge PDFs"):
-            pdf_writer = PdfWriter()
-            for file in merge_files:
-                reader = PdfReader(file)
+    merge_files = st.file_uploader(
+        "Upload PDF files to merge", type=["pdf"], accept_multiple_files=True, key="merge_files"
+    )
+    merge_name = st.text_input("Custom output file name", value="merged.pdf", key="merge_name")
+
+    if "merge_cert" not in st.session_state:
+        st.session_state.merge_cert = False
+
+    st.session_state.merge_cert = st.checkbox(
+        "Generate Data Deletion Certificate for Merge",
+        value=st.session_state.merge_cert,
+        key="merge_cert_checkbox"
+    )
+
+    if merge_files and st.button("Merge PDFs"):
+        try:
+            writer = PdfWriter()
+            for pdf in merge_files:
+                reader = PdfReader(pdf)
                 for page in reader.pages:
-                    pdf_writer.add_page(page)
+                    writer.add_page(page)
 
             merged_bytes = BytesIO()
-            pdf_writer.write(merged_bytes)
+            writer.write(merged_bytes)
             merged_bytes.seek(0)
 
+            st.success("✅ PDFs merged successfully!")
             st.download_button(
-                label="Download Merged PDF",
+                "⬇️ Download Merged PDF",
                 data=merged_bytes,
-                file_name=custom_name,
-                mime="application/pdf"
+                file_name=merge_name,
+                mime="application/pdf",
             )
 
-            # Optional Data Deletion Certificate for Merge
-            if st.checkbox("Generate Data Deletion Certificate for Merge"):
-                buffer = BytesIO()
-                c = canvas.Canvas(buffer)
+            # Generate optional certificate
+            if st.session_state.merge_cert:
+                cert = BytesIO()
+                c = canvas.Canvas(cert)
                 c.setFont("Helvetica", 12)
                 c.drawString(50, 750, "Data Deletion Certificate (Merge)")
                 c.setFont("Helvetica", 10)
-                c.drawString(50, 720, f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-                c.drawString(50, 700, "This certifies that all uploaded files for merging have been removed from memory.")
+                c.drawString(50, 720, f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                c.drawString(50, 700, "This certifies that all temporary files used for merging were deleted.")
                 c.save()
-                buffer.seek(0)
+                cert.seek(0)
 
                 st.download_button(
-                    "Download Merge Data Deletion Certificate",
-                    data=buffer,
-                    file_name="merge_data_deletion_certificate.pdf",
-                    mime="application/pdf"
+                    "📜 Download Merge Deletion Certificate",
+                    data=cert,
+                    file_name="merge_deletion_certificate.pdf",
+                    mime="application/pdf",
                 )
 
-# ---------------- SPLIT PDFs ----------------
+        except Exception as e:
+            st.error(f"Error merging PDFs: {e}")
+
+# -------------------------------------------------------------------
+# ✂️ SPLIT PDFs
+# -------------------------------------------------------------------
 with split_col:
-    st.header("Split PDF by Ranges")
-    split_file = st.file_uploader("Upload PDF to split", type=["pdf"], key="split")
+    st.header("📑 Split PDF by Page Ranges")
+
+    split_file = st.file_uploader("Upload PDF to split", type=["pdf"], key="split_file")
 
     if split_file:
-        pdf_reader = PdfReader(split_file)
-        total_pages = len(pdf_reader.pages)
+        reader = PdfReader(split_file)
+        total_pages = len(reader.pages)
         st.success(f"Uploaded PDF has {total_pages} pages.")
 
-        # Initialize session state for tracking downloads
+        # Initialize session state
         if "split_downloaded" not in st.session_state:
             st.session_state.split_downloaded = []
 
-        # User inputs ranges
-        st.markdown("**Enter page ranges separated by commas, e.g., 1-5,6-10**")
-        user_ranges = st.text_input("Page ranges", value="")
+        st.markdown("**Enter page ranges separated by commas (e.g., 1-5, 10-15, 20-25)**")
+        user_input = st.text_input("Page ranges", value="", key="range_input")
 
         ranges = []
         try:
-            for r in user_ranges.split(","):
-                if r.strip() == "":
+            for part in user_input.split(","):
+                if not part.strip():
                     continue
-                start, end = map(int, r.split("-"))
+                start, end = map(int, part.split("-"))
                 if start < 1 or end > total_pages or start > end:
-                    st.error(f"Invalid range: {start}-{end}. Must be within 1-{total_pages}.")
+                    st.error(f"Invalid range: {start}-{end} (must be within 1-{total_pages})")
                 else:
                     ranges.append((start, end))
         except:
-            st.warning("Enter ranges in proper format: start-end, separated by commas.")
+            st.warning("⚠️ Please enter ranges correctly in format: start-end, separated by commas.")
 
         if ranges:
-            # Initialize split_downloaded if not set or changed
+            # Initialize tracking for each range
             if len(st.session_state.split_downloaded) != len(ranges):
                 st.session_state.split_downloaded = [False] * len(ranges)
 
-            # Show all download buttons persistently
             for i, (start, end) in enumerate(ranges):
                 if not st.session_state.split_downloaded[i]:
-                    pdf_writer = PdfWriter()
-                    for page_num in range(start - 1, end):
-                        pdf_writer.add_page(pdf_reader.pages[page_num])
+                    writer = PdfWriter()
+                    for p in range(start - 1, end):
+                        writer.add_page(reader.pages[p])
 
-                    pdf_bytes = BytesIO()
-                    pdf_writer.write(pdf_bytes)
-                    pdf_bytes.seek(0)
+                    output_bytes = BytesIO()
+                    writer.write(output_bytes)
+                    output_bytes.seek(0)
 
                     if st.download_button(
-                        label=f"Download pages {start}-{end}",
-                        data=pdf_bytes,
+                        f"⬇️ Download pages {start}-{end}",
+                        data=output_bytes,
                         file_name=f"pages_{start}_{end}.pdf",
                         mime="application/pdf",
-                        key=f"split_btn_{i}"
+                        key=f"dl_btn_{i}"
                     ):
                         st.session_state.split_downloaded[i] = True
-                        st.success(f"Pages {start}-{end} downloaded!")
+                        st.success(f"✅ Pages {start}-{end} downloaded!")
 
-            # Once all downloaded
-            if all(st.session_state.split_downloaded):
-                st.success("All selected ranges downloaded!")
+            if all(st.session_state.split_downloaded) and len(ranges) > 0:
+                st.success("🎉 All selected page ranges have been downloaded!")
 
-                # Optional Data Deletion Certificate for Split
-                if st.checkbox("Generate Data Deletion Certificate for Split"):
-                    buffer = BytesIO()
-                    c = canvas.Canvas(buffer)
+                # Optional certificate
+                if "split_cert" not in st.session_state:
+                    st.session_state.split_cert = False
+
+                st.session_state.split_cert = st.checkbox(
+                    "Generate Data Deletion Certificate for Split",
+                    value=st.session_state.split_cert,
+                    key="split_cert_checkbox"
+                )
+
+                if st.session_state.split_cert:
+                    cert = BytesIO()
+                    c = canvas.Canvas(cert)
                     c.setFont("Helvetica", 12)
                     c.drawString(50, 750, "Data Deletion Certificate (Split)")
                     c.setFont("Helvetica", 10)
-                    c.drawString(50, 720, f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-                    c.drawString(50, 700, "This certifies that all uploaded files for splitting have been removed from memory.")
+                    c.drawString(50, 720, f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                    c.drawString(50, 700, "All temporary split files were securely deleted.")
                     c.save()
-                    buffer.seek(0)
+                    cert.seek(0)
 
                     st.download_button(
-                        "Download Split Data Deletion Certificate",
-                        data=buffer,
-                        file_name="split_data_deletion_certificate.pdf",
-                        mime="application/pdf"
+                        "📜 Download Split Deletion Certificate",
+                        data=cert,
+                        file_name="split_deletion_certificate.pdf",
+                        mime="application/pdf",
                     )
 
-                if st.button("Reset Split"):
+                if st.button("🔄 Reset Split"):
                     st.session_state.split_downloaded = [False] * len(ranges)
+                    st.rerun()
