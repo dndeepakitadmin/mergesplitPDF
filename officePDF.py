@@ -11,7 +11,6 @@ st.title("📄 Merge and Split PDF Tool")
 # --- Acknowledgment ---
 ack = st.checkbox(
     "✅ I acknowledge that this tool will NOT be used for unethical or illegal purposes. "
-    "It is intended only for professional use."
 )
 if not ack:
     st.warning("⚠️ You must acknowledge the terms to use this tool.")
